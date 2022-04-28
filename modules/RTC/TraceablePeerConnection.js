@@ -2673,6 +2673,15 @@ TraceablePeerConnection.prototype.setSenderVideoConstraints = function(frameHeig
         parameters.encodings[0].active = false;
     }
 
+    // [VOWEL] Enable SVC on AV1 if supported TODO: implement "if supported"
+    const usingAV1 = this.codecPreference.mimeType === CodecMimeType.AV1;
+    const scalabilityMode = usingAV1 ? 'L3T3' : undefined;
+
+    parameters.encodings.forEach(e => {
+        e.scalabilityMode = scalabilityMode;
+    });
+    console.info(`Adjusted encodings scalability mode to: ${scalabilityMode}`);
+
     logger.info(`${this} setting max height=${frameHeight},encodings=${JSON.stringify(parameters.encodings)}`);
 
     return videoSender.setParameters(parameters).then(() => {
