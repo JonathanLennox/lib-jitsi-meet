@@ -198,6 +198,12 @@ SDP.prototype.toJingle = function(elem, thecreator) {
             elem.attrs({ name: mid });
         }
 
+        if (mline.media === 'video' && typeof this.initialLastN === 'number') {
+            elem.c('initial-last-n',
+                { xmlns: 'jitsi:colibri2',
+                    value: this.initialLastN }).up();
+        }
+
         if (mline.media === 'audio' || mline.media === 'video') {
             elem.c('description',
                 { xmlns: 'urn:xmpp:jingle:apps:rtp:1',
@@ -319,7 +325,7 @@ SDP.prototype.toJingle = function(elem, thecreator) {
             this.rtcpFbToJingle(i, elem, '*');
 
             // XEP-0294
-            const extmapLines = SDPUtil.findLines(this.media[i], 'a=extmap:');
+            const extmapLines = SDPUtil.findLines(this.media[i], 'a=extmap:', this.session);
 
             for (let j = 0; j < extmapLines.length; j++) {
                 const extmap = SDPUtil.parseExtmap(extmapLines[j]);
