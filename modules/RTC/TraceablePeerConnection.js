@@ -2738,10 +2738,12 @@ TraceablePeerConnection.prototype._updateVideoSenderEncodings = function(frameHe
     const usingAV1 = this.codecSettings.preferred === CodecMimeType.AV1;
     const scalabilityMode = usingAV1 ? 'L3T3' : undefined;
 
-    parameters.encodings.forEach(e => {
-        e.scalabilityMode = scalabilityMode;
-    });
-    console.info(`Adjusted encodings scalability mode to: ${scalabilityMode}`);
+    if (scalabilityMode) {
+        parameters.encodings.forEach(e => {
+            e.scalabilityMode = scalabilityMode;
+        });
+        console.info(`Adjusted encodings scalability mode to: ${scalabilityMode}`);
+    }
 
     logger.info(`${this} setting max height=${frameHeight},encodings=${JSON.stringify(parameters.encodings)}`);
 
