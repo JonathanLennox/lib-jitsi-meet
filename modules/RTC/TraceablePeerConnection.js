@@ -182,8 +182,15 @@ export default function TraceablePeerConnection(
     /**
      * The set of remote SSRCs seen so far.
      * Distinguishes new SSRCs from those that have been remapped.
+     * @type {Set<number>}
      */
     this.remoteSSRCs = new Set();
+
+    /**
+     * Mapping of source-names and their associated SSRCs that have been signaled by the JVB.
+     * @type {Map<string, number>}
+     */
+    this.remoteSources = new Map();
 
     /**
      * The local ICE username fragment for this session.
@@ -1012,7 +1019,7 @@ TraceablePeerConnection.prototype._remoteTrackAdded = function(stream, track, tr
     // Assume default presence state for remote source. Presence can be received after source signaling. This shouldn't
     // prevent the endpoint from creating a remote track for the source.
     let muted = true;
-    let videoType = VideoType.CAMERA;
+    let videoType = mediaType === MediaType.VIDEO ? VideoType.CAMERA : undefined; // 'camera' by default
 
     if (peerMediaInfo) {
         muted = peerMediaInfo.muted;
@@ -1185,6 +1192,10 @@ TraceablePeerConnection.prototype._removeRemoteTrack = function(toBeRemoved) {
 
     toBeRemoved.dispose();
     const participantId = toBeRemoved.getParticipantId();
+
+    if (!participantId && FeatureFlags.isSsrcRewritingSupported()) {
+        return;
+    }
     const userTracksByMediaType = this.remoteTracks.get(participantId);
 
     if (!userTracksByMediaType) {
@@ -1665,6 +1676,10 @@ TraceablePeerConnection.prototype._isSharingScreen = function() {
  * @returns {RTCSessionDescription} the munged description.
  */
 TraceablePeerConnection.prototype._mungeCodecOrder = function(description) {
+    if (!this.codecSettings) {
+        return description;
+    }
+
     const parsedSdp = transform.parse(description.sdp);
     const mLines = parsedSdp.media.filter(m => m.type === this.codecSettings.mediaType);
 
@@ -1928,6 +1943,9 @@ TraceablePeerConnection.prototype.setDesktopSharingFrameRate = function(maxFps) 
  * @returns {void}
  */
 TraceablePeerConnection.prototype.setVideoCodecs = function(preferredCodec, disabledCodec) {
+    if (!this.codecSettings) {
+        return;
+    }
     preferredCodec && (this.codecSettings.preferred = preferredCodec);
     disabledCodec && (this.codecSettings.disabled = disabledCodec);
 };
@@ -2423,6 +2441,9 @@ TraceablePeerConnection.prototype._initializeDtlsTransport = function() {
  * @returns RTCSessionDescription
  */
 TraceablePeerConnection.prototype._setVp9MaxBitrates = function(description, isLocalSdp = false) {
+    if (!this.codecSettings) {
+        return description;
+    }
     const parsedSdp = transform.parse(description.sdp);
 
     // Find all the m-lines associated with the local sources.
@@ -3001,7 +3022,7 @@ TraceablePeerConnection.prototype._createOfferOrAnswer = function(
 
     // Set the codec preference before creating an offer or answer so that the generated SDP will have
     // the correct preference order.
-    if (this._usesTransceiverCodecPreferences) {
+    if (this._usesTransceiverCodecPreferences && this.codecSettings) {
         const { mediaType } = this.codecSettings;
         const transceivers = this.peerconnection.getTransceivers()
             .filter(t => t.receiver && t.receiver?.track?.kind === mediaType);

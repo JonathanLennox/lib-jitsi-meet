@@ -324,6 +324,9 @@ export default function JitsiConference(options) {
      * again by Jicofo.
      */
     this._videoSenderLimitReached = undefined;
+
+    this._firefoxP2pEnabled = browser.isVersionGreaterThan(109)
+        && (this.options.config.testing?.enableFirefoxP2p ?? true);
 }
 
 // FIXME convert JitsiConference to ES6 - ASAP !
@@ -1249,9 +1252,11 @@ JitsiConference.prototype._getInitialLocalTracks = function() {
             const trackType = track.getType();
 
             if (trackType === MediaType.AUDIO
-                    && (!this.isStartAudioMuted() || browser.isWebKitBased() || browser.isReactNative())) {
+                    && (!(this.isStartAudioMuted() || this.startMutedPolicy.audio)
+                    || browser.isWebKitBased()
+                    || browser.isReactNative())) {
                 return true;
-            } else if (trackType === MediaType.VIDEO && !this.isStartVideoMuted()) {
+            } else if (trackType === MediaType.VIDEO && !this.isStartVideoMuted() && !this.startMutedPolicy.video) {
                 return true;
             }
 
@@ -1485,6 +1490,7 @@ JitsiConference.prototype._setTrackMuteStatus = function(mediaType, localTrack, 
 
     if (localTrack) {
         presenceChanged = this._signalingLayer.setTrackMuteStatus(localTrack.getSourceName(), isMuted);
+        presenceChanged && logger.debug(`Mute state of ${localTrack} changed to muted=${isMuted}`);
     }
 
     return presenceChanged;
@@ -1986,7 +1992,7 @@ JitsiConference.prototype.onMemberKicked = function(
         this.eventEmitter.emit(
             JitsiConferenceEvents.KICKED, actorParticipant, reason, isReplaceParticipant);
 
-        this.leave();
+        this.leave().finally(() => this.xmpp.disconnect());
 
         return;
     }
@@ -2164,7 +2170,7 @@ JitsiConference.prototype._onIncomingCallP2P = function(jingleSession, jingleOff
             errorMsg: 'P2P across two endpoints in different SDP modes is disabled'
         };
     } else if ((!this.isP2PEnabled() && !this.isP2PTestModeEnabled())
-        || browser.isFirefox()) {
+        || (browser.isFirefox() && !this._firefoxP2pEnabled)) {
         rejectReason = {
             reason: 'decline',
             reasonDescription: 'P2P disabled',
@@ -2673,7 +2679,10 @@ JitsiConference.prototype.setStartMutedPolicy = function(policy) {
 
         return;
     }
-    this.startMutedPolicy = policy;
+
+    // Do not apply the startMutedPolicy locally on the moderator, the moderator should join with available local
+    // sources and the policy needs to be applied only on users that join the call after.
+    // this.startMutedPolicy = policy;
     this.room.addOrReplaceInPresence('startmuted', {
         attributes: {
             audio: policy.audio,
@@ -3460,7 +3469,7 @@ JitsiConference.prototype._suspendMediaTransferForJvbConnection = function() {
 JitsiConference.prototype._maybeStartOrStopP2P = function(userLeftEvent) {
     if (!this.isP2PEnabled()
             || this.isP2PTestModeEnabled()
-            || browser.isFirefox()
+            || (browser.isFirefox() && !this._firefoxP2pEnabled)
             || this.isE2EEEnabled()) {
         logger.info('Auto P2P disabled');
 
@@ -3656,9 +3665,13 @@ JitsiConference.prototype._updateRoomPresence = function(jingleSession, ctx) {
 
     // Set presence for all the available local tracks.
     for (const track of localTracks) {
-        muteStatusChanged = this._setTrackMuteStatus(track.getType(), track, track.isMuted());
+        const muted = track.isMuted();
+
+        muteStatusChanged = this._setTrackMuteStatus(track.getType(), track, muted);
+        muteStatusChanged && logger.debug(`Updating mute state of ${track} in presence to muted=${muted}`);
         if (track.getType() === MediaType.VIDEO) {
             videoTypeChanged = this._setNewVideoType(track);
+            videoTypeChanged && logger.debug(`Updating videoType in presence to ${track.getVideoType()}`);
         }
         presenceChanged = presenceChanged || muteStatusChanged || videoTypeChanged;
     }

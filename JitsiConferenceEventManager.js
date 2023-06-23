@@ -225,7 +225,8 @@ JitsiConferenceEventManager.prototype.setupChatRoomListeners = function() {
     this.chatRoomForwarder.forward(XMPPEvents.REDIRECTED,
         JitsiConferenceEvents.CONFERENCE_FAILED,
         JitsiConferenceErrors.REDIRECTED);
-    chatRoom.addListener(XMPPEvents.REDIRECTED, () => conference.leave());
+    chatRoom.addListener(XMPPEvents.REDIRECTED,
+        () => conference.leave().catch(e => logger.log('Error leaving on redirected', e)));
 
     this.chatRoomForwarder.forward(XMPPEvents.BRIDGE_DOWN,
         JitsiConferenceEvents.CONFERENCE_FAILED,
@@ -446,22 +447,16 @@ JitsiConferenceEventManager.prototype.setupChatRoomListeners = function() {
         });
 
     chatRoom.addPresenceListener('startmuted', (data, from) => {
-        let isModerator = false;
-
-        if (conference.myUserId() === from && conference.isModerator()) {
-            isModerator = true;
-        } else {
-            const participant = conference.getParticipantById(from);
-
-            if (participant && participant.isModerator()) {
-                isModerator = true;
-            }
-        }
-
-        if (!isModerator) {
+        // Ignore the strartmuted policy if the presence is received from self. The moderator should join with
+        // available local sources and the policy needs to be applied only on users that join the call after.
+        if (conference.myUserId() === from) {
             return;
         }
+        const participant = conference.getParticipantById(from);
 
+        if (!participant || !participant.isModerator()) {
+            return;
+        }
         const startAudioMuted = data.attributes.audio === 'true';
         const startVideoMuted = data.attributes.video === 'true';
 
