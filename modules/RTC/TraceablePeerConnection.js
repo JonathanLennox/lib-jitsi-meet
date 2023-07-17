@@ -689,11 +689,12 @@ TraceablePeerConnection.prototype.getAudioLevels = function(speakerList = []) {
 
 /**
  * Checks if the browser is currently doing true simulcast where in three different media streams are being sent to the
- * bridge. Currently this happens only when VP8 is the selected codec.
+ * bridge. Currently this happens when VP8 or H264 is the selected codec.
  * @returns {boolean}
  */
 TraceablePeerConnection.prototype.doesTrueSimulcast = function() {
-    return this.isSimulcastOn() && this.getConfiguredVideoCodec() === CodecMimeType.VP8;
+    return this.isSimulcastOn() && (this.getConfiguredVideoCodec() === CodecMimeType.VP8
+                                    || this.getConfiguredVideoCodec() === CodecMimeType.H264);
 };
 
 /**
