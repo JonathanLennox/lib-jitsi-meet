@@ -2757,7 +2757,8 @@ TraceablePeerConnection.prototype._updateVideoSenderEncodings = function(frameHe
 
     // [VOWEL] Enable SVC on AV1 if supported TODO: implement "if supported"
     const usingAV1 = this.codecSettings.preferred === CodecMimeType.AV1;
-    const scalabilityMode = usingAV1 ? 'L3T3' : undefined;
+    const usingH264 = this.codecSettings.preferred === CodecMimeType.H264;
+    const scalabilityMode = usingAV1 ? 'L3T3' : usingH264 ? 'L1T3' : undefined;
 
     if (scalabilityMode) {
         parameters.encodings.forEach(e => {

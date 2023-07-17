@@ -3,7 +3,6 @@ import $ from 'jquery';
 import { $build, $iq, Strophe } from 'strophe.js';
 
 import { JitsiTrackEvents } from '../../JitsiTrackEvents';
-import * as CodecMimeType from '../../service/RTC/CodecMimeType';
 import { MediaDirection } from '../../service/RTC/MediaDirection';
 import { MediaType } from '../../service/RTC/MediaType';
 import { VideoType } from '../../service/RTC/VideoType';
@@ -413,8 +412,9 @@ export default class JingleSessionPC extends JingleSession {
             pcOptions.disableSimulcast = true;
         } else {
             // H264 scalability is not supported on jvb, so simulcast needs to be disabled when H264 is preferred.
+            // TODO: condition this on whether the AV1 DD is supported.  For now disable the disabling.
             pcOptions.disableSimulcast
-                = options.disableSimulcast || options.videoQuality?.preferredCodec === CodecMimeType.H264;
+                = options.disableSimulcast/* || options.videoQuality?.preferredCodec === CodecMimeType.H264 */;
 
             // Do not send lower spatial layers for low fps screenshare and enable them only for high fps screenshare.
             pcOptions.capScreenshareBitrate = pcOptions.disableSimulcast
